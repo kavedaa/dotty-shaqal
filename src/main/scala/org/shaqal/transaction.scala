@@ -45,14 +45,10 @@ class TransactionConnector[D](underlying: Connector[D], connection: Connection)
     }
   }
 
-  export underlying.onExecute
+  export underlying.onStatement
   export underlying.onParameterList
   export underlying.onRow
   export underlying.onError
-  export underlying.onConnectionError
-  export underlying.onExecuteError
-  export underlying.onPrepareError
-  export underlying.onRowError
   export underlying.onTransactionStart
   export underlying.onTransactionCommit
   export underlying.onTransactionRollback
@@ -62,14 +58,13 @@ class TransactionConnector[D](underlying: Connector[D], connection: Connection)
 
 def transaction[D, A]
   (f: TransactionConnector[D] ?=> Try[A])
-  (using connector: Connector[D])
-  : Try[A] = {
-    connector.withTransaction { (using tc: TransactionConnector[D]) =>
+  (using connector: Connector[D]): 
+  Try[A] =
+    connector.withTransaction { (tc: TransactionConnector[D]) ?=>
       val result = f
-      if result.isSuccess
+      if result.isSuccess then
         tc.commit()
       else
         tc.rollback()        
       result
     }
-  }

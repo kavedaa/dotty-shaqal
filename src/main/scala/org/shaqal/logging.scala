@@ -4,8 +4,8 @@ import java.sql.ResultSet
 
 trait Logger {
 
-  def onExecute(sql: Sql)(using Connector[?]): Unit = {}
-  def onParameterList(parameterList: Seq[SqlParameter[?]])(using Connector[?]): Unit = {}
+  def onStatement(sql: Sql)(using Connector[?]): Unit = {}
+  def onParameterList(parameterList: Iterable[SqlParameter[?]])(using Connector[?]): Unit = {}
   def onRow(sql: Sql, rs: ResultSet)(using Connector[?]): Unit = {}
 
   def onError(ex: Throwable)(using Connector[?]): Unit = {}
@@ -22,10 +22,10 @@ trait Logger {
 
 object Logger {
 
-  given defaultLogger as Logger {
+  given defaultLogger: Logger with {
 
-    override def onExecute(sql: Sql)(using connector: Connector[?]) = println(s"${connector.name}: Executing: ${sql.pp}")
-    override def onParameterList(parameterList: Seq[SqlParameter[?]])(using connector: Connector[?]) = println(s"${connector.name}: Parameter list: ${parameterList.render}")
+    override def onStatement(sql: Sql)(using connector: Connector[?]) = println(s"${connector.name}: Executing: ${sql.pp}")
+    override def onParameterList(parameterList: Iterable[SqlParameter[?]])(using connector: Connector[?]) = println(s"${connector.name}: Parameter list: ${parameterList.render}")
     override def onRow(sql: Sql, rs: ResultSet)(using connector: Connector[?]) = println(s"${connector.name}: Row: ${rs.getRow}")
 
     override def onError(ex: Throwable)(using connector: Connector[?]) = println(s"${connector.name}: Error: ${ex.getMessage}")
@@ -43,14 +43,14 @@ class LoggingConnector[D](underlying: Connector[D], logger: Logger)
   export underlying.getConnection
   export underlying.close  
 
-  def onExecute(sql: Sql)(using Connector[D]) = {
-    logger onExecute sql
-    underlying onExecute sql
+  def onStatement(sql: Sql)(using Connector[D]) = {
+    logger.onStatement(sql)
+    underlying.onStatement(sql)
   }
 
-  def onParameterList(parameterList: Seq[SqlParameter[?]])(using Connector[D]) = {
-    logger onParameterList parameterList
-    underlying onParameterList parameterList
+  def onParameterList(parameterList: Iterable[SqlParameter[?]])(using Connector[D]) = {
+    logger.onParameterList(parameterList)
+    underlying.onParameterList(parameterList)
   }
 
   def onRow(sql: Sql, rs: ResultSet)(using Connector[D]) = {
@@ -63,22 +63,22 @@ class LoggingConnector[D](underlying: Connector[D], logger: Logger)
     underlying.onError(ex)
   }
 
-  def onConnectionError(ex: Throwable)(using Connector[D]) = {
+  override def onConnectionError(ex: Throwable)(using Connector[D]) = {
     logger.onConnectionError(ex)
     underlying.onConnectionError(ex)
   }
 
-  def onPrepareError(ex: Throwable)(using Connector[D]) = {
+  override def onPrepareError(ex: Throwable)(using Connector[D]) = {
     logger.onPrepareError(ex)
     underlying.onPrepareError(ex)
   }
 
-  def onExecuteError(ex: Throwable)(using Connector[D]) = {
+  override def onExecuteError(ex: Throwable)(using Connector[D]) = {
     logger.onExecuteError(ex)
     underlying.onExecuteError(ex)
   }
 
-  def onRowError(rs: ResultSet, ex: Throwable)(using Connector[D]) = {
+  override def onRowError(rs: ResultSet, ex: Throwable)(using Connector[D]) = {
     logger.onRowError(rs, ex)
     underlying.onRowError(rs, ex)
   }
@@ -106,4 +106,4 @@ def logged[D, A]
   (f: Connector[D] ?=> A)
   (using connector: Connector[D])
   : A =
-    f(using LoggingConnector(connector, logger))
+    f(using new LoggingConnector(connector, logger))

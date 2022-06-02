@@ -1,10 +1,15 @@
 package org.shaqal
 
-import scala.util._
 import java.time._
-import jdbc._
+import java.sql._
 
-sealed abstract class SqlParameter[A] {
+import scala.collection.Factory
+import scala.util._
+
+import org.shaqal._
+import org.shaqal.jdbc._
+
+sealed abstract class SqlParameter[+A] {
   def render: String
 }
 
@@ -42,16 +47,23 @@ object SqlParameter {
     case x => StringParameter(x.toString)
   }
 
-  extension on (xs: Seq[SqlParameter[?]]) {
+  extension (xs: Iterable[SqlParameter[?]]) {
     def render = xs map(_.render) mkString ", "
   }
 }
 
 trait Sql {
+
   def render: String
   def pp: String = render
-  def parameterLists: Seq[Seq[SqlParameter[?]]]
-  def execute[D]()(using Connector[D]): Try[Unit] = Jdbc.execute(this)
+  def parameterLists: Iterable[Iterable[SqlParameter[?]]]
+
+  def queryColl[D, R, Coll[_]](factory: Factory[R, Coll[R]])(f: ResultSet => R)(using connector: Connector[D]): Try[List[Coll[R]]] =
+    Jdbc.queryColl(factory)(this)(f)
+
+  def execute[D]()(using Connector[D]): Try[List[Int]] = 
+    Jdbc.executeUpdate(this)
+
   override def toString = pp
 }
 
@@ -61,25 +73,27 @@ class StatementSql(val render: String, val parameterLists: Seq[Seq[SqlParameter[
   * If more than one of the arguments are a collection, it is assumed
   * that they have the same size. Otherwise an exeption is thrown.
   */
-def (sc: StringContext) sql(args: Any*): Sql = {
-  val statement = sc.parts mkString "(?)"
-  val parameters =
-    if (args.nonEmpty) {
-      val iterables = args collect { case i: Iterable[?] => i }
-      if (iterables.nonEmpty) {
-        val max = (iterables map (_.size)).max
-        val iterators = args map {
-          case i: Iterable[?] => i.iterator
-          case x => Iterator continually x
+extension (sc: StringContext) {
+  def sql(args: Any*): Sql = {
+    val statement = sc.parts mkString "(?)"
+    val parameters =
+      if (args.nonEmpty) {
+        val iterables = args collect { case i: Iterable[?] => i }
+        if (iterables.nonEmpty) {
+          val max = (iterables map (_.size)).max
+          val iterators = args map {
+            case i: Iterable[?] => i.iterator
+            case x => Iterator continually x
+          }
+          val builder = Seq.newBuilder[Seq[SqlParameter[?]]]
+          for (_ <- 0 until max) builder += iterators map { i => SqlParameter(i.next()) }
+          builder.result
         }
-        val builder = Seq.newBuilder[Seq[SqlParameter[?]]]
-        for (_ <- 0 until max) builder += iterators map { i => SqlParameter(i.next()) }
-        builder.result
+        else Seq(args map SqlParameter.apply)
       }
-      else Seq(args map SqlParameter.apply)
-    }
-    else Nil
-  new StatementSql(statement, parameters)
+      else Nil
+    new StatementSql(statement, parameters)
+  }
 }
 
 

@@ -4,7 +4,7 @@ organization := "org.shaqal"
 
 version := "2.0-SNAPSHOT"
 
-scalaVersion := "0.26.0-RC1"
+scalaVersion := "3.1.0"
 
 libraryDependencies ++= Seq(
   "com.h2database" % "h2" % "1.3.170" % "test",

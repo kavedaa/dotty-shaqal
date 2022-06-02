@@ -6,16 +6,16 @@ import java.util.Properties
 import java.io._
 import javax.sql.DataSource
 
-abstract class DBC[C] extends ConnectorBase[C] {
-  def close(conn: Connection) = { conn.close() }
-}
+abstract class DBC[C] 
+  extends ConnectorBase[C]:
+  def close(conn: Connection) = conn.close()
 
 abstract class UrlDBC[C](
   url: String,
   driver: Driver,
   username: String,
   password: String)
-  extends DBC[C] {
+  extends DBC[C]:
 
   def this(protocol: String, properties: Properties, driver: Driver) =
     this(
@@ -37,7 +37,6 @@ abstract class UrlDBC[C](
   DriverManager registerDriver driver
 
   def getConnection() = DriverManager getConnection (url, username, password)
-}
 
 abstract class DataSourceDBC[C](
   server: String,
@@ -46,7 +45,7 @@ abstract class DataSourceDBC[C](
   username: String,
   password: String,
   dsFactory: DataSourceFactory)
-  extends DBC[C] {
+  extends DBC[C]:
 
   def this(properties: Properties, dsFactory: DataSourceFactory) =
     this(
@@ -79,8 +78,6 @@ abstract class DataSourceDBC[C](
   val dataSource = dsFactory getDataSource (server, dbName, port, username, password)
 
   def getConnection() = dataSource.getConnection()
-}
 
-abstract class DataSourceFactory {
+abstract class DataSourceFactory:
   def getDataSource(server: String, database: String, port: Int, user: String, password: String): DataSource
-}
